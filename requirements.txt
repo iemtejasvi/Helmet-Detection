@@ -1,2 +1,3 @@
 ultralytics==8.0.20
 roboflow
+supervision
