@@ -42,10 +42,10 @@ Welcome to the Helmet Detection Using YOLOv8 project! This project utilizes the 
 
 5. **Run the Helmet Detection Script:**
 
-   Execute the main Python script (`helmet_detection.py`) by providing the path to the directory containing your images or videos:
+   Execute the main Python script (`main.py`) by providing the path to the directory containing your images or videos:
 
    ```bash
-   python helmet_detection.py /path/to/images_or_videos
+   python main.py /path/to/images_or_videos
    ```
 
    Replace `/path/to/images_or_videos` with the actual path to the directory containing the images or videos you want to perform helmet detection on.
