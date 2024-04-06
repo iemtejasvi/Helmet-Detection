@@ -8,7 +8,7 @@ from utils.helperFunctions import *  # Some extra help from our friends
 from ultralytics import YOLO  # Magic tool for detecting things
 
 # Our special tool for spotting helmets
-model = YOLO(r"C:\Users\steja\Helmet-Detection\models\data.pt")
+model = YOLO(r"C:\Users\steja\Helmet-Detection\models\data.pt")  
 
 # How big our pictures should be
 frame_wid = 640
@@ -45,8 +45,9 @@ def processImages(image_path_list, image_name_list, image_storage_folder):
 
         # Using our special model to find helmets
         results = model(image)[0]
-        detections = sv.Detections.from_yolov8(results)
-        labels = [f"{model.model.names[class_id]}" for _, _, class_id, _ in detections]
+        detections = sv.Detections.from_yolov8(result)
+        labels = [f"{model.model.names[class_id]} confidence:{confidence}" for _, _, confidence, class_id, _ in detections]
+
 
         # Drawing boxes around the helmets we found
         image = box_annotator.annotate(
