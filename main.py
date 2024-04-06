@@ -8,7 +8,7 @@ from utils.helperFunctions import *  # Some extra help from our friends
 from ultralytics import YOLO  # Magic tool for detecting things
 
 # Our special tool for spotting helmets
-model = YOLO(r"C:\Users\steja\Helmet and Head detection\models\data.pt")
+model = YOLO(r"C:\Users\steja\Helmet-Detection\models\data.pt")
 
 # How big our pictures should be
 frame_wid = 640
