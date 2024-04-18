@@ -68,7 +68,3 @@ Contributions to this project are welcome! If you have suggestions for improveme
 
 If you encounter any issues while using the project or have suggestions for improvements, please open an issue on the GitHub repository. Your feedback is valuable in improving the project.
 
-### License
-
-This project is licensed under the [MIT License](LICENSE).
-
