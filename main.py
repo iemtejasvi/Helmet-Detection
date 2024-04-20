@@ -1,119 +1,88 @@
-import cv2  # For dealing with images
-import supervision as sv  # Helping us in supervision tasks
-import os  # For doing stuff with files and folders
-from datetime import datetime  # For handling dates and times
-import sys  # Helps us talk with the system
+import cv2
+import os
+import sys
+import csv
+from ultralytics import YOLO
 
-from utils.helperFunctions import *  # Some extra help from our friends
-from ultralytics import YOLO  # Magic tool for detecting things
+def show_file_size(file):
+    file_size = os.path.getsize(file)
+    file_size_mb = round(file_size / 1024, 2)
+    print("File size is " + str(file_size_mb) + "MB")
 
-# Our special tool for spotting helmets
-model = YOLO(r"C:\Users\steja\Helmet-Detection\models\data.pt")  
+def imageLoader(folder_path):
+    items = os.listdir(folder_path)
+    images = [item for item in items if item.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    print(f"[!] Found {len(images)} images [!]")
+    images_path_list = [os.path.join(folder_path, image) for image in images]
+    return (images_path_list, images)
 
-# How big our pictures should be
-frame_wid = 640
-frame_hyt = 480
+def saveResultCSV(result, output_folder_name, csv_file_name):
+    csv_path = os.path.join(output_folder_name, csv_file_name + ".csv")
+    with open(csv_path, "w", newline='') as f1:
+        writer = csv.writer(f1, delimiter=",")
+        writer.writerow(["Image Name", "Image Location", "Status"])
+        for row in result:
+            writer.writerow(row)
 
+def checkHeads(labels, image_name_list, image_path_list, image, csv_result_msg_final, i, image_storage_folder):
+    if "head" in labels:
+        print("head found")
+        image_name = f"{image_name_list[i]}"
+        image_loc = os.path.join(image_storage_folder, image_name)
+        cv2.imwrite(image_loc, image)
+        message = "No Helmet"
+        csv_result_msg_final.append([image_name, image_path_list[i], message])
+    return csv_result_msg_final
 
-def processImages(image_path_list, image_name_list, image_storage_folder):
-    """
-    Let's process some pictures! We'll find helmets using a cool model, draw on the pictures,
-    and save them in a special place.
-
-    Args:
-        - image_path_list: Where our pictures are.
-        - image_name_list: Names of those pictures.
-        - image_storage_folder: The special place where we keep the modified pictures.
-
-    Returns:
-        - csv_result_msg_final: Messages about what we found in each picture.
-    """
-
-    # Tool for drawing boxes around stuff
-    box_annotator = sv.BoxAnnotator(thickness=2, text_thickness=1, text_scale=1)
-
+def processImages(image_path_list, image_name_list, image_storage_folder, model):
     csv_result_msg_final = []
+    frame_wid = 640
+    frame_hyt = 480
 
-    for i in range(len(image_path_list)):
-        frame = cv2.imread(image_path_list[i])
-
-        # print("Before Compression")
-        # show_file_size(image_path_list[i])
-
-        # Making the picture just the right size
+    for i, image_path in enumerate(image_path_list):
+        frame = cv2.imread(image_path)
         image = cv2.resize(frame, (frame_wid, frame_hyt))
+        results = model(image)
+        print("Debug: Processing results...")
 
-        # Using our special model to find helmets
-        results = model(image)[0]
-        detections = sv.Detections.from_yolov8(result)
-        labels = [f"{model.model.names[class_id]} confidence:{confidence}" for _, _, confidence, class_id, _ in detections]
+        for result in results:
+            detections = []
+            # Access the bounding box data from the 'boxes' attribute
+            if hasattr(result, 'boxes') and result.boxes is not None:
+                for bbox_tensor in result.boxes.data:
+                    if len(bbox_tensor) == 6:
+                        x1, y1, x2, y2, conf, cls_id = bbox_tensor
+                        if conf > 0.25:
+                            label = result.names[int(cls_id)]
+                            detections.append({'bbox': (x1, y1, x2, y2), 'label': label, 'confidence': conf})
+                    else:
+                        print(f"Debug: Unexpected bbox_tensor dimensions or missing data - {bbox_tensor}")
 
-
-        # Drawing boxes around the helmets we found
-        image = box_annotator.annotate(
-            scene=image,
-            detections=detections
-            # labels=labels
-        )
-
-        # Checking if helmets are worn properly and saving results
-        csv_result_msg_final = checkHeads(
-            labels,
-            image_name_list,
-            image_path_list,
-            image,
-            csv_result_msg_final,
-            i,
-            image_storage_folder,
-        )
-
-        # Show the picture with drawings
-        # cv2.imshow("Helmet Detection", image)
-        # if cv2.waitKey(1) == 27:
-        #     break
+            # Annotation functions would go here
+            labels = [det['label'] for det in detections]
+            csv_result_msg_final = checkHeads(labels, image_name_list, image_path_list, image, csv_result_msg_final, i, image_storage_folder)
+            print("Debug: Image processed.")
 
     return csv_result_msg_final
 
-
 if __name__ == "__main__":
-    """
-    Our main job is to find helmets in pictures. We'll figure out where the pictures are,
-    process them, and save our findings.
-    """
-
     try:
-        # Finding out where our pictures are and where we want to save our findings
         inter_path = sys.argv[1:]
-        real_path = ""
-        for path in inter_path:
-            real_path = real_path + path + " "
-
-        folder_path = real_path.strip()
-        split_list = folder_path.split("\\")
-        output_folder_name = os.path.join("Result", split_list[-1])
-        os.makedirs(output_folder_name)
-
+        folder_path = " ".join(inter_path).strip()
+        output_folder_name = os.path.join("Result", os.path.basename(folder_path))
+        os.makedirs(output_folder_name, exist_ok=True)
         image_storage_folder = os.path.join(output_folder_name, "images")
-        os.makedirs(image_storage_folder)
+        os.makedirs(image_storage_folder, exist_ok=True)
 
-    except Exception as error:
-        print("[!] Oops! Something went wrong! [!]")
-
-    try:
-        # Let's load our pictures and find those helmets
         image_path_list, image_name_list = imageLoader(folder_path)
-        result = processImages(image_path_list, image_name_list, image_storage_folder)
-
-        # Saving our findings in a special file
-        saveResultCSV(result, output_folder_name, csv_file_name=split_list[-1])
-
-        print(
-            f"Yay! We saved our pictures in '{image_storage_folder}' and our findings in '{output_folder_name}'"
-        )
-
+        model_path = r"C:\Users\steja\Helmet-Detection\models\data.pt"
+        model = YOLO(model_path)
+        result = processImages(image_path_list, image_name_list, image_storage_folder, model)
+        saveResultCSV(result, output_folder_name, csv_file_name=os.path.basename(folder_path))
+        print(f"Images saved to '{image_storage_folder}' \nCSV file generated saved to '{output_folder_name}'")
     except Exception as error:
-        # Cleaning up if something went wrong
-        print("[!] Oops! Something went wrong while processing! [!]")
-        print(f"Error: {error}")
-        os.rmdir(image_storage_folder)
-        os.rmdir(output_folder_name)
+        print("[!] An error occurred: ", str(error))
+        if os.path.exists(image_storage_folder):
+            os.rmdir(image_storage_folder)
+        if os.path.exists(output_folder_name):
+            os.rmdir(output_folder_name)
