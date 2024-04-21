@@ -4,11 +4,6 @@ import sys
 import csv
 from ultralytics import YOLO
 
-def show_file_size(file):
-    file_size = os.path.getsize(file)
-    file_size_mb = round(file_size / 1024, 2)
-    print("File size is " + str(file_size_mb) + "MB")
-
 def imageLoader(folder_path):
     items = os.listdir(folder_path)
     images = [item for item in items if item.lower().endswith(('.png', '.jpg', '.jpeg'))]
@@ -24,47 +19,47 @@ def saveResultCSV(result, output_folder_name, csv_file_name):
         for row in result:
             writer.writerow(row)
 
-def processDetections(labels, image_name_list, image_path_list, image, csv_result_msg_final, i, image_storage_folder):
-    status = "Helmet" if "helmet" in labels else "No Helmet"
-    if "head" in labels or "helmet" in labels:
-        image_name = image_name_list[i]
-        image_loc = os.path.join(image_storage_folder, image_name)
-        cv2.imwrite(image_loc, image)
-        csv_result_msg_final.append([image_name, image_path_list[i], status])
+def draw_bounding_box(image, bbox, label, confidence):
+    x1, y1, x2, y2 = map(int, bbox)
+    color = (0, 255, 0) if 'helmet' in label.lower() else (255, 0, 0)
+    cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
+    label_with_conf = f"{label} ({confidence:.2f})"
+    cv2.putText(image, label_with_conf, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+def processDetections(results, image_name, image_path, image, csv_result_msg_final, image_storage_folder):
+    status = "No Helmet"
+    if not results:
+        print("No results found.")
+        return csv_result_msg_final
+    
+    result = results[0]  # Assume there is at least one result per image
+    boxes = result.boxes.numpy()  # Convert boxes to numpy array
+    labels = result.names
+
+    for box, conf, cls_id in zip(boxes.xyxy, boxes.conf, boxes.cls):
+        label = labels[int(cls_id)]
+        if 'helmet' in label.lower() and conf > 0.25:
+            status = "Helmet"
+            draw_bounding_box(image, box, label, conf)
+
+    image_loc = os.path.join(image_storage_folder, image_name)
+    cv2.imwrite(image_loc, image)
+    csv_result_msg_final.append([image_name, image_path, status])
     return csv_result_msg_final
 
 def processImages(image_path_list, image_name_list, image_storage_folder, model):
     csv_result_msg_final = []
-    frame_wid = 640
-    frame_hyt = 480
-
     for i, image_path in enumerate(image_path_list):
-        frame = cv2.imread(image_path)
-        image = cv2.resize(frame, (frame_wid, frame_hyt))
+        image = cv2.imread(image_path)
         results = model(image)
-        print("Debug: Processing results...")
-
-        for result in results:
-            detections = []
-            if hasattr(result, 'boxes') and result.boxes is not None:
-                for bbox_tensor in result.boxes.data:
-                    if len(bbox_tensor) == 6:
-                        x1, y1, x2, y2, conf, cls_id = bbox_tensor
-                        if conf > 0.25:
-                            label = result.names[int(cls_id)]
-                            detections.append({'bbox': (x1, y1, x2, y2), 'label': label, 'confidence': conf})
-
-            labels = [det['label'] for det in detections]
-            csv_result_msg_final = processDetections(labels, image_name_list, image_path_list, image, csv_result_msg_final, i, image_storage_folder)
-            print("Debug: Image processed.")
-
+        csv_result_msg_final = processDetections(results, image_name_list[i], image_path, image, csv_result_msg_final, image_storage_folder)
+        print("Debug: Image processed.")
     return csv_result_msg_final
 
 if __name__ == "__main__":
     try:
-        inter_path = sys.argv[1:]
-        folder_path = " ".join(inter_path).strip()
-        output_folder_name = os.path.join("Result", os.path.basename(folder_path))
+        folder_path = sys.argv[1]
+        output_folder_name = "Result"
         os.makedirs(output_folder_name, exist_ok=True)
         image_storage_folder = os.path.join(output_folder_name, "images")
         os.makedirs(image_storage_folder, exist_ok=True)
@@ -72,12 +67,10 @@ if __name__ == "__main__":
         image_path_list, image_name_list = imageLoader(folder_path)
         model_path = r"C:\Users\steja\Helmet-Detection\models\data.pt"
         model = YOLO(model_path)
+
         result = processImages(image_path_list, image_name_list, image_storage_folder, model)
-        saveResultCSV(result, output_folder_name, csv_file_name=os.path.basename(folder_path))
-        print(f"Images saved to '{image_storage_folder}'\nCSV file generated saved to '{output_folder_name}'")
+        saveResultCSV(result, output_folder_name, csv_file_name="detection_results")
+        print(f"Images saved to '{image_storage_folder}'")
+        print(f"CSV file generated and saved to '{output_folder_name}'")
     except Exception as error:
-        print("[!] An error occurred: ", str(error))
-        if os.path.exists(image_storage_folder):
-            os.rmdir(image_storage_folder)
-        if os.path.exists(output_folder_name):
-            os.rmdir(output_folder_name)
+        print("An error occurred:", str(error))
