@@ -21,7 +21,7 @@ def saveResultCSV(result, output_folder_name, csv_file_name):
 
 def draw_bounding_box(image, bbox, label, confidence):
     x1, y1, x2, y2 = map(int, bbox)
-    color = (0, 255, 0) if 'helmet' in label.lower() else (255, 0, 0)
+    color = (0, 255, 0) if 'helmet' in label.lower() else (0, 0, 255)  # Blue for head, green for helmet
     cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
     label_with_conf = f"{label} ({confidence:.2f})"
     cv2.putText(image, label_with_conf, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
@@ -38,9 +38,10 @@ def processDetections(results, image_name, image_path, image, csv_result_msg_fin
 
     for box, conf, cls_id in zip(boxes.xyxy, boxes.conf, boxes.cls):
         label = labels[int(cls_id)]
-        if 'helmet' in label.lower() and conf > 0.25:
-            status = "Helmet"
-            draw_bounding_box(image, box, label, conf)
+        if conf > 0.25:  # Only consider detections with confidence > 25%
+            if 'helmet' in label.lower():
+                status = "Helmet"
+            draw_bounding_box(image, box, label, conf)  # Draw box for both head and helmet
 
     image_loc = os.path.join(image_storage_folder, image_name)
     cv2.imwrite(image_loc, image)
