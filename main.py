@@ -14,7 +14,7 @@ def imageLoader(folder_path):
     images = [item for item in items if item.lower().endswith(('.png', '.jpg', '.jpeg'))]
     print(f"[!] Found {len(images)} images [!]")
     images_path_list = [os.path.join(folder_path, image) for image in images]
-    return (images_path_list, images)
+    return images_path_list, images
 
 def saveResultCSV(result, output_folder_name, csv_file_name):
     csv_path = os.path.join(output_folder_name, csv_file_name + ".csv")
@@ -24,14 +24,13 @@ def saveResultCSV(result, output_folder_name, csv_file_name):
         for row in result:
             writer.writerow(row)
 
-def checkHeads(labels, image_name_list, image_path_list, image, csv_result_msg_final, i, image_storage_folder):
-    if "head" in labels:
-        print("head found")
-        image_name = f"{image_name_list[i]}"
+def processDetections(labels, image_name_list, image_path_list, image, csv_result_msg_final, i, image_storage_folder):
+    status = "Helmet" if "helmet" in labels else "No Helmet"
+    if "head" in labels or "helmet" in labels:
+        image_name = image_name_list[i]
         image_loc = os.path.join(image_storage_folder, image_name)
         cv2.imwrite(image_loc, image)
-        message = "No Helmet"
-        csv_result_msg_final.append([image_name, image_path_list[i], message])
+        csv_result_msg_final.append([image_name, image_path_list[i], status])
     return csv_result_msg_final
 
 def processImages(image_path_list, image_name_list, image_storage_folder, model):
@@ -47,7 +46,6 @@ def processImages(image_path_list, image_name_list, image_storage_folder, model)
 
         for result in results:
             detections = []
-            # Access the bounding box data from the 'boxes' attribute
             if hasattr(result, 'boxes') and result.boxes is not None:
                 for bbox_tensor in result.boxes.data:
                     if len(bbox_tensor) == 6:
@@ -55,12 +53,9 @@ def processImages(image_path_list, image_name_list, image_storage_folder, model)
                         if conf > 0.25:
                             label = result.names[int(cls_id)]
                             detections.append({'bbox': (x1, y1, x2, y2), 'label': label, 'confidence': conf})
-                    else:
-                        print(f"Debug: Unexpected bbox_tensor dimensions or missing data - {bbox_tensor}")
 
-            # Annotation functions would go here
             labels = [det['label'] for det in detections]
-            csv_result_msg_final = checkHeads(labels, image_name_list, image_path_list, image, csv_result_msg_final, i, image_storage_folder)
+            csv_result_msg_final = processDetections(labels, image_name_list, image_path_list, image, csv_result_msg_final, i, image_storage_folder)
             print("Debug: Image processed.")
 
     return csv_result_msg_final
@@ -79,7 +74,7 @@ if __name__ == "__main__":
         model = YOLO(model_path)
         result = processImages(image_path_list, image_name_list, image_storage_folder, model)
         saveResultCSV(result, output_folder_name, csv_file_name=os.path.basename(folder_path))
-        print(f"Images saved to '{image_storage_folder}' \nCSV file generated saved to '{output_folder_name}'")
+        print(f"Images saved to '{image_storage_folder}'\nCSV file generated saved to '{output_folder_name}'")
     except Exception as error:
         print("[!] An error occurred: ", str(error))
         if os.path.exists(image_storage_folder):
