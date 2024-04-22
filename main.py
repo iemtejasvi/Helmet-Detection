@@ -101,8 +101,8 @@ if __name__ == "__main__":
 
         # Load images and get paths and names.
         image_path_list, image_name_list = imageLoader(folder_path)
-        # Path to the model we're using.
-        model_path = r"C:\Users\steja\Helmet-Detection\models\data.pt"
+        # Path to the model using a relative path from the script's location 
+        model_path = os.path.join(os.path.dirname(__file__), "models", "data.pt")
         # Load up YOLO with the specified model.
         model = YOLO(model_path)
 
